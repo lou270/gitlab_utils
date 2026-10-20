@@ -16,6 +16,11 @@ export GITLAB_TOKEN=glpat-xxxx   # scope "api", Maintainer sur les submodules
 ./add_group_to_submodules_allowlist.py mon-groupe/mon-projet mon-groupe
 ```
 
+Les variables (`GITLAB_URL`, `GITLAB_TOKEN`, `GITLAB_CA_FILE`) peuvent aussi être mises dans un
+fichier `.env` (voir `.env.example`). Le script le cherche dans le répertoire courant, puis à côté du
+script ; `--env-file` permet d'en indiquer un autre. Les variables déjà exportées restent prioritaires.
+Si `python-dotenv` est installé il est utilisé, sinon un lecteur intégré prend le relais.
+
 Options :
 
 | Option | Description |
@@ -29,6 +34,7 @@ Options :
 | `--gitlab-host HOST` | Hôte présent dans les URLs des submodules s'il diffère de celui de `--gitlab-url` |
 | `--ca-file FICHIER` | Certificat (PEM) de l'autorité qui signe le certificat HTTPS de GitLab (défaut : `$GITLAB_CA_FILE` ou `$REQUESTS_CA_BUNDLE`) |
 | `--insecure` | Désactive la vérification du certificat HTTPS (déconseillé, pour dépanner) |
+| `--env-file FICHIER` | Fichier `.env` à charger (défaut : `./.env`, sinon `.env` à côté du script) |
 | `--ipv4` | Force les connexions en IPv4 (activé automatiquement si l'IPv6 est indisponible sur la machine) |
 
 Les URLs de submodules relatives (`../x.git`), HTTPS et SSH sont supportées ; celles pointant

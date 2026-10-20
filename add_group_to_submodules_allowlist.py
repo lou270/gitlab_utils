@@ -14,6 +14,10 @@ Usage :
     export GITLAB_TOKEN=glpat-xxxx   # scope "api", rôle Maintainer sur les submodules
     ./add_group_to_submodules_allowlist.py mon-groupe/mon-projet mon-groupe
 
+Les variables peuvent aussi être définies dans un fichier .env (voir .env.example),
+cherché dans le répertoire courant puis à côté du script, ou passé avec --env-file.
+Les variables déjà définies dans l'environnement restent prioritaires.
+
 Options : voir --help.
 """
 
@@ -29,6 +33,43 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+
+
+def load_env_file(path):
+    """Charge un fichier .env sans écraser les variables déjà définies."""
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        load_dotenv = None
+    if load_dotenv:
+        load_dotenv(path, override=False)
+        return
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            if key.startswith("export "):
+                key = key[len("export "):].strip()
+            value = value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+                value = value[1:-1]
+            os.environ.setdefault(key, value)
+
+
+def load_env(env_file=None):
+    if env_file:
+        if not os.path.isfile(env_file):
+            sys.exit(f"Fichier '{env_file}' introuvable.")
+        load_env_file(env_file)
+        return
+    for directory in (os.getcwd(), os.path.dirname(os.path.abspath(__file__))):
+        path = os.path.join(directory, ".env")
+        if os.path.isfile(path):
+            load_env_file(path)
+            return
 
 
 class GitLabError(Exception):
@@ -257,6 +298,12 @@ def walk(gl, project, ref, group, args, visited, stats, depth=0):
 
 
 def main():
+    # Le .env doit être chargé avant la définition des options, dont les
+    # valeurs par défaut viennent de l'environnement.
+    pre_parser = argparse.ArgumentParser(add_help=False)
+    pre_parser.add_argument("--env-file")
+    load_env(pre_parser.parse_known_args()[0].env_file)
+
     parser = argparse.ArgumentParser(
         description="Ajoute un groupe à la allowlist CI/CD job token de chaque "
         "submodule (récursivement) d'un projet GitLab."
@@ -286,6 +333,8 @@ def main():
                         help="Désactive la vérification du certificat HTTPS (déconseillé)")
     parser.add_argument("--ipv4", action="store_true",
                         help="Force les connexions en IPv4 (automatique si l'IPv6 est indisponible)")
+    parser.add_argument("--env-file",
+                        help="Fichier .env à charger (défaut : ./.env, sinon .env à côté du script)")
     args = parser.parse_args()
 
     if args.ipv4 or not ipv6_supported():
