@@ -24,6 +24,7 @@ import os
 import posixpath
 import re
 import socket
+import ssl
 import sys
 import urllib.error
 import urllib.parse
@@ -58,10 +59,11 @@ def ipv6_supported():
 
 
 class GitLab:
-    def __init__(self, url, token):
+    def __init__(self, url, token, ssl_context=None):
         self.url = url.rstrip("/")
         self.api = self.url + "/api/v4"
         self.token = token
+        self.ssl_context = ssl_context
 
     def request(self, method, endpoint, params=None, data=None, raw=False):
         url = self.api + endpoint
@@ -74,14 +76,17 @@ class GitLab:
             headers["Content-Type"] = "application/json"
         req = urllib.request.Request(url, data=body, method=method, headers=headers)
         try:
-            with urllib.request.urlopen(req) as resp:
+            with urllib.request.urlopen(req, context=self.ssl_context) as resp:
                 content = resp.read()
                 headers = resp.headers
         except urllib.error.HTTPError as e:
             msg = e.read().decode(errors="replace")
             raise GitLabError(e.code, msg) from None
         except urllib.error.URLError as e:
-            raise GitLabError("réseau", f"{url} : {e.reason}") from None
+            hint = ""
+            if isinstance(e.reason, ssl.SSLCertVerificationError):
+                hint = " (indiquer le certificat de l'autorité avec --ca-file, ou --insecure)"
+            raise GitLabError("réseau", f"{url} : {e.reason}{hint}") from None
         if raw:
             return content.decode()
         return (json.loads(content) if content else None), headers
@@ -268,6 +273,12 @@ def main():
     parser.add_argument("--gitlab-host",
                         help="Hôte utilisé dans les URLs des submodules, si différent de celui "
                         "de --gitlab-url (ex. hôte SSH)")
+    parser.add_argument("--ca-file",
+                        default=os.environ.get("GITLAB_CA_FILE") or os.environ.get("REQUESTS_CA_BUNDLE"),
+                        help="Certificat (PEM) de l'autorité qui signe le certificat HTTPS de GitLab "
+                        "(défaut : $GITLAB_CA_FILE ou $REQUESTS_CA_BUNDLE)")
+    parser.add_argument("--insecure", action="store_true",
+                        help="Désactive la vérification du certificat HTTPS (déconseillé)")
     parser.add_argument("--ipv4", action="store_true",
                         help="Force les connexions en IPv4 (automatique si l'IPv6 est indisponible)")
     args = parser.parse_args()
@@ -280,7 +291,16 @@ def main():
         sys.exit("Variable d'environnement GITLAB_TOKEN manquante.")
     args.gitlab_host = args.gitlab_host or urllib.parse.urlparse(args.gitlab_url).hostname
 
-    gl = GitLab(args.gitlab_url, token)
+    if args.insecure:
+        print("ATTENTION : vérification du certificat HTTPS désactivée.", file=sys.stderr)
+        ssl_context = ssl._create_unverified_context()
+    else:
+        try:
+            ssl_context = ssl.create_default_context(cafile=args.ca_file)
+        except (OSError, ssl.SSLError) as e:
+            sys.exit(f"Impossible de charger le certificat '{args.ca_file}' : {e}")
+
+    gl = GitLab(args.gitlab_url, token, ssl_context)
     try:
         project = gl.get(f"/projects/{gl.enc(args.project)}")
         group = gl.get(f"/groups/{gl.enc(args.group)}", with_projects="false")
