@@ -27,6 +27,7 @@ Options :
 | `--dry-run` | N'effectue aucune modification |
 | `--gitlab-url URL` | URL de l'instance (défaut : `$GITLAB_URL` ou `https://gitlab.com`) |
 | `--gitlab-host HOST` | Hôte présent dans les URLs des submodules s'il diffère de celui de `--gitlab-url` |
+| `--ipv4` | Force les connexions en IPv4 (activé automatiquement si l'IPv6 est indisponible sur la machine) |
 
 Les URLs de submodules relatives (`../x.git`), HTTPS et SSH sont supportées ; celles pointant
 vers un autre hôte sont ignorées. Le script est idempotent (les groupes déjà présents sont sautés)

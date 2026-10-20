@@ -23,6 +23,7 @@ import json
 import os
 import posixpath
 import re
+import socket
 import sys
 import urllib.error
 import urllib.parse
@@ -31,8 +32,29 @@ import urllib.request
 
 class GitLabError(Exception):
     def __init__(self, status, message):
-        super().__init__(f"HTTP {status}: {message}")
+        prefix = f"HTTP {status}" if isinstance(status, int) else "Erreur réseau"
+        super().__init__(f"{prefix}: {message}")
         self.status = status
+
+
+def force_ipv4():
+    """Restreint la résolution DNS à l'IPv4 (machines où l'IPv6 est désactivé)."""
+    getaddrinfo = socket.getaddrinfo
+
+    def getaddrinfo_ipv4(host, port, family=0, *args, **kwargs):
+        return getaddrinfo(host, port, socket.AF_INET, *args, **kwargs)
+
+    socket.getaddrinfo = getaddrinfo_ipv4
+
+
+def ipv6_supported():
+    if not socket.has_ipv6:
+        return False
+    try:
+        socket.socket(socket.AF_INET6, socket.SOCK_STREAM).close()
+    except OSError:
+        return False
+    return True
 
 
 class GitLab:
@@ -58,6 +80,8 @@ class GitLab:
         except urllib.error.HTTPError as e:
             msg = e.read().decode(errors="replace")
             raise GitLabError(e.code, msg) from None
+        except urllib.error.URLError as e:
+            raise GitLabError("réseau", f"{url} : {e.reason}") from None
         if raw:
             return content.decode()
         return (json.loads(content) if content else None), headers
@@ -244,7 +268,12 @@ def main():
     parser.add_argument("--gitlab-host",
                         help="Hôte utilisé dans les URLs des submodules, si différent de celui "
                         "de --gitlab-url (ex. hôte SSH)")
+    parser.add_argument("--ipv4", action="store_true",
+                        help="Force les connexions en IPv4 (automatique si l'IPv6 est indisponible)")
     args = parser.parse_args()
+
+    if args.ipv4 or not ipv6_supported():
+        force_ipv4()
 
     token = os.environ.get("GITLAB_TOKEN")
     if not token:
