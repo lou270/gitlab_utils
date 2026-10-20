@@ -129,11 +129,13 @@ def parse_gitmodules(content):
     return submodules
 
 
-def resolve_project_path(submodule_url, parent_path, gitlab_host):
+def resolve_project_path(submodule_url, parent_path, gitlab_host, base_path=""):
     """
     Convertit l'URL d'un submodule en chemin de projet GitLab (namespace/projet).
     Gère les URLs relatives (../x.git), https://host/..., ssh://git@host/...
     et git@host:... Retourne None si l'URL pointe vers un autre hôte.
+    base_path est le chemin de l'instance GitLab (ex. "gitlab" pour
+    https://host/gitlab), retiré du début des URLs absolues.
     """
     url = submodule_url
 
@@ -149,6 +151,9 @@ def resolve_project_path(submodule_url, parent_path, gitlab_host):
             host, path = parsed.hostname, parsed.path
         if host and host.lower() != gitlab_host.lower():
             return None
+        path = path.strip("/")
+        if base_path and path.startswith(base_path + "/"):
+            path = path[len(base_path) + 1:]
 
     path = path.strip("/")
     if path.endswith(".git"):
@@ -219,7 +224,7 @@ def walk(gl, project, ref, group, args, visited, stats, depth=0):
         return
     for sub_path, sub_url in parse_gitmodules(content):
         target = resolve_project_path(
-            sub_url, project["path_with_namespace"], args.gitlab_host
+            sub_url, project["path_with_namespace"], args.gitlab_host, args.gitlab_base_path
         )
         print(f"{indent}- {sub_path} -> {sub_url}")
         if target is None:
@@ -290,6 +295,7 @@ def main():
     if not token:
         sys.exit("Variable d'environnement GITLAB_TOKEN manquante.")
     args.gitlab_host = args.gitlab_host or urllib.parse.urlparse(args.gitlab_url).hostname
+    args.gitlab_base_path = urllib.parse.urlparse(args.gitlab_url).path.strip("/")
 
     if args.insecure:
         print("ATTENTION : vérification du certificat HTTPS désactivée.", file=sys.stderr)

@@ -25,7 +25,7 @@ Options :
 | `--no-recursive` | Ne traite que les submodules directs |
 | `--use-default-branch` | Lit les `.gitmodules` des submodules sur leur branche par défaut plutôt que sur le commit référencé par le parent |
 | `--dry-run` | N'effectue aucune modification |
-| `--gitlab-url URL` | URL de l'instance (défaut : `$GITLAB_URL` ou `https://gitlab.com`) |
+| `--gitlab-url URL` | URL de l'instance, éventuellement avec un chemin, ex. `https://host/gitlab` (défaut : `$GITLAB_URL` ou `https://gitlab.com`) |
 | `--gitlab-host HOST` | Hôte présent dans les URLs des submodules s'il diffère de celui de `--gitlab-url` |
 | `--ca-file FICHIER` | Certificat (PEM) de l'autorité qui signe le certificat HTTPS de GitLab (défaut : `$GITLAB_CA_FILE` ou `$REQUESTS_CA_BUNDLE`) |
 | `--insecure` | Désactive la vérification du certificat HTTPS (déconseillé, pour dépanner) |
